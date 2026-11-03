@@ -1,5 +1,7 @@
 # Scraparr
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-unterst%C3%BCtzen-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/quentyn83)
+
 **Scraparr** ist ein Scraper für Filme und Serien **komplett auf Deutsch** von TMDB
 und legt alles so ab, dass **Emby oder Jellyfin** (und Kodi) es lokal einliest.
 
@@ -325,6 +327,12 @@ app/jobs.py      Hintergrundjobs, Auto-Lauf, Emby-Refresh
 app/static/      Webfrontend (ohne Build-Schritt)
 data/            SQLite-DB + Thumbnail-Cache (Volume)
 ```
+
+## Unterstützen
+
+Wenn dir das Projekt hilft und du mir einen Kaffee ausgeben möchtest, freue ich mich sehr:
+
+<a href="https://buymeacoffee.com/quentyn83"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="45"></a>
 
 ## Lizenz
 
