@@ -226,31 +226,41 @@ def _scan_show_folder(folder, seen_eps, progress=None):
         if progress:
             progress(f"Neue Serie: {g['title']}")
     db.update("shows", sid, has_theme=int(paths.has_theme(folder)))
+    title = db.one("SELECT guess_title FROM shows WHERE id=?", (sid,))["guess_title"]
     for _, vids in _walk_videos(folder):
+        # 1. Einzelerkennung; 2. was offen bleibt, wird mit den Nachbardateien des Ordners verglichen
+        todo, guesses = [], {}
         for v in vids:
             seen_eps.add(v)
+            ep = db.one("SELECT id, status, season, episodes FROM episodes WHERE path=?", (v,))
+            if ep and not (ep["status"] == "fehler" and ep["season"] is None and not ep["episodes"]):
+                continue                                  # schon erkannt
+            todo.append((v, ep))
+            guesses[v] = parser.guess_episode(v, folder, title)
+        rest = [v for v, _ in todo if not guesses[v]]
+        if len(rest) >= 2:
+            for v, g in parser.infer_episodes(rest, folder, title).items():
+                guesses[v] = g
+        todo = dict(todo)
+        for v in vids:
             est = paths.episode_status(v)
             ep = db.one("SELECT id, status, season, episodes FROM episodes WHERE path=?", (v,))
+            g = guesses.get(v)
             if ep:
                 fix = {}
-                if ep["status"] == "fehler" and ep["season"] is None and not ep["episodes"]:
-                    g = parser.guess_episode(v, folder)          # bisher nicht erkannt: mit aktueller Erkennung neu versuchen
-                    if g:
-                        fix = {"season": g["season"], "episodes": g["episodes"], "status": "neu", "message": None}
-                        db.execute("UPDATE shows SET status='neu' WHERE id=? AND status='gescrapt'", (sid,))
-                        db.log("INFO", f"Episode jetzt erkannt: {os.path.basename(v)} → S{g['season']:02d}"
-                                       f"E{g['episodes'][0]:02d}")
+                if v in todo and g:                       # bisher nicht erkannt: mit aktueller Erkennung neu versuchen
+                    fix = {"season": g["season"], "episodes": g["episodes"], "status": "neu", "message": None}
+                    db.execute("UPDATE shows SET status='neu' WHERE id=? AND status='gescrapt'", (sid,))
+                    db.log("INFO", f"Episode jetzt erkannt: {os.path.basename(v)} → S{g['season']:02d}"
+                                   f"E{g['episodes'][0]:02d}")
                 db.update("episodes", ep["id"], missing=0, show_id=sid,
                           **{k: int(x) for k, x in est.items()}, **fix)
-                continue
-            g = parser.guess_episode(v, folder)
-            if g:
+            elif g:
                 db.execute(
                     "INSERT INTO episodes (show_id, path, season, episodes, has_nfo, has_thumb, "
                     "added, updated) VALUES (?,?,?,?,?,?,?,?)",
                     (sid, v, g["season"], json.dumps(g["episodes"]),
                      *(int(x) for x in est.values()), db.now(), db.now()))
-                # neue Episode -> Serie muss nachgescrapt werden
                 db.execute("UPDATE shows SET status='neu' WHERE id=? AND status='gescrapt'", (sid,))
             else:
                 db.execute(

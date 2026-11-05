@@ -228,13 +228,28 @@ def guess_show_folder(folder: str):
     return {"title": _clean_title(title), "year": year, **hints}
 
 
-SEASON_DIR = re.compile(r"^(?:season|staffel|series|s)[ ._-]*(\d{1,3})(?:\b|$)", re.I)
+SEASON_DIR = re.compile(r"^(?:season|staffel|saison|series|serie|s)[ ._-]*(\d{1,3})(?:\b|$)", re.I)
+SEASON_DIR_AFTER = re.compile(r"^(\d{1,2})\.?[ ._-]*(?:staffel|season|saison|series|serie)\b", re.I)
 SPECIAL_DIRS = {"specials", "special", "season 0", "staffel 0"}
+
+
+def season_of_dir(name, bare=False):
+    """Staffelnummer aus einem Ordnernamen ("Staffel 04", "S04", "4. Staffel", "Season_4"), sonst None.
+    bare=True: auch reine Zahlen ("04") – nur für Unterordner einer bekannten Serie sinnvoll."""
+    n = (name or "").strip()
+    m = SEASON_DIR.match(n) or SEASON_DIR_AFTER.match(n)
+    if m:
+        return int(m.group(1))
+    if n.lower() in SPECIAL_DIRS or n.lower() in ("extras",):
+        return 0
+    if bare and re.fullmatch(r"\d{1,2}", n):
+        return int(n)
+    return None
 
 
 def is_season_dir(name):
     n = name.strip()
-    return bool(SEASON_DIR.match(n)) or n.lower() in SPECIAL_DIRS
+    return bool(SEASON_DIR.match(n) or SEASON_DIR_AFTER.match(n)) or n.lower() in SPECIAL_DIRS
 # Wörtliche Angaben: "6_Staffel_-_Epi21", "Staffel 6 - Folge 21", "6. Staffel 21. Folge", "Season 6 Episode 21", "Ep21"
 _SEASON_W = r"(?:Staffel|Season|Saison|Series|Serie)"
 _EP_W = r"(?:Episode|Epi|Folge|Fol|Ep)"
@@ -246,16 +261,119 @@ SXXEYY = re.compile(r"[Ss](\d{1,3})[ ._-]?[Ee](\d{1,4})((?:[ ._-]?[Ee-]\d{1,4})*
 NXNN = re.compile(r"(?<!\d)(\d{1,2})x(\d{2,3})(?!\d)")
 
 
-def guess_episode(path: str, show_root: str):
-    stem = os.path.splitext(os.path.basename(path))[0]
+# ---- Zahlen im Dateinamen: alles Technische abziehen, der Rest sind Staffel-/Folgennummern
+_NOISE = re.compile(
+    r"(?<![A-Za-z0-9])(?:"
+    r"(?:19|20)\d{2}[-.]\d{2}[-.]\d{2}|\d{2}[-.]\d{2}[-.](?:19|20)\d{2}"     # Datum
+    r"|(?:19|20)\d{2}"                                                       # Jahr
+    r"|\d{3,4}[pi]|[hx]\.?26[45]|mpeg-?\d|\d\.\d|\d+(?:bit|fps|kbps|mb|gb)"    # Auflösung, Codec, Audio, Größe
+    r"|(?:dvd|cd|disc|disk|part|pt)\s?\d|[0-9a-f]{8}"                          # Datenträger, CRC
+    r")(?![A-Za-z0-9])", re.I)
+_SEASON_TAG = re.compile(r"(?<![A-Za-z0-9])S(\d{1,3})(?![A-Za-z0-9])")
+_NUM = re.compile(r"(?<!\d)(\d{1,4})(?!\d)")
+
+
+def _tokens(s):
+    return [t for t in re.split(r"[^a-z0-9äöüß]+", s.lower()) if t]
+
+
+def _strip_title(text, title):
+    """Serientitel (auch mit Zahlen: "24", "2 Broke Girls") aus dem Dateinamen nehmen."""
+    tt = _tokens(strip_ids(title or ""))
+    if not tt:
+        return text
+    words = re.split(r"([^A-Za-z0-9ÄÖÜäöüß]+)", text)
+    toks = [w for w in words if w and not re.fullmatch(r"[^A-Za-z0-9ÄÖÜäöüß]+", w)]
+    low = [w.lower() for w in toks]
+    for i in range(len(low) - len(tt) + 1):
+        if low[i:i + len(tt)] == tt:
+            keep = toks[:i] + toks[i + len(tt):]
+            return " ".join(keep)
+    return text
+
+
+def number_candidates(stem, show_title=None):
+    """-> (Staffel-Tag|None, [(Zahl, in_Klammern, Position)]) – Zahlen, die als Folgennummer in Frage kommen."""
+    text = _strip_title(stem.replace("_", " "), show_title)
+    st = _SEASON_TAG.search(text)
+    season = int(st.group(1)) if st else None
+    cleaned = _SEASON_TAG.sub(" ", _NOISE.sub(" ", text))
+    out = []
+    for m in _NUM.finditer(cleaned):
+        pre = cleaned[:m.start()].rstrip()[-1:]
+        post = cleaned[m.end():].lstrip()[:1]
+        out.append((int(m.group(1)), (pre, post) in (("(", ")"), ("[", "]")), m.start()))
+    return season, out
+
+
+def single_number_episode(stem, show_title=None):
+    """Genau eine Zahl bleibt übrig -> Folge. Mehrere: eine in Klammern oder eine am Anfang ("01 - Titel") gewinnt."""
+    tag, nums = number_candidates(stem, show_title)
+    nums = [n for n in nums if 0 < n[0] < 1000]
+    if len(nums) == 1:
+        return tag, nums[0][0]
+    bracket = [n for n in nums if n[1]]
+    if len(bracket) == 1:
+        return tag, bracket[0][0]
+    lead = [n for n in nums if n[2] <= 1]
+    if len(lead) == 1:
+        return tag, lead[0][0]
+    return tag, None
+
+
+def infer_episodes(paths, show_root, show_title=None):
+    """Mehrere nicht erkannte Dateien eines Ordners vergleichen: die Zahl, die von Datei zu Datei hochzählt, ist die
+    Folgennummer ("S04 (1)" … "S04 (16)", "Serie_Titel_01_…"). -> {Pfad: {"season", "episodes"}}"""
+    rows = {}
+    for p in paths:
+        tag, nums = number_candidates(os.path.splitext(os.path.basename(p))[0], show_title)
+        rows[p] = (tag, [n[0] for n in nums])
+    if len(rows) < 2:
+        return {}
+    best = None
+    for mode in ("start", "end"):
+        for k in range(0, 6):
+            vals = {}
+            for p, (_, nums) in rows.items():
+                idx = k if mode == "start" else -1 - k
+                if -len(nums) <= idx < len(nums):
+                    vals[p] = nums[idx]
+            if len(vals) < max(2, int(0.8 * len(rows))):
+                continue
+            v = list(vals.values())
+            distinct = len(set(v)) / len(v)
+            span = max(v) - min(v) + 1
+            density = len(set(v)) / span
+            if distinct < 0.9 or len(set(v)) < 2 or max(v) >= 1000 or density < 0.3:
+                continue
+            score = (distinct * density, -k)
+            if best is None or score > best[0]:
+                best = (score, vals)
+    if not best:
+        return {}
+    out = {}
+    for p, ep in best[1].items():
+        season = rows[p][0]
+        if season is None:
+            season = _season_from_dirs(p, show_root)
+        out[p] = {"season": season if season is not None else 1, "episodes": [ep]}
+    return out
+
+
+def _season_from_dirs(path, show_root):
     season = None
     rel = os.path.relpath(os.path.dirname(path), show_root)
-    for part in rel.split(os.sep):
-        m = SEASON_DIR.match(part.strip())
-        if m:
-            season = int(m.group(1))
-        elif part.lower() in ("specials", "special", "extras"):
-            season = 0
+    if rel != ".":
+        for part in rel.split(os.sep):
+            n = season_of_dir(part, bare=True)
+            if n is not None:
+                season = n
+    return season
+
+
+def guess_episode(path: str, show_root: str, show_title=None):
+    stem = os.path.splitext(os.path.basename(path))[0]
+    season = _season_from_dirs(path, show_root)
     m = SXXEYY.search(stem)
     if m:
         first = int(m.group(2))
@@ -290,6 +408,12 @@ def guess_episode(path: str, show_root: str):
         if isinstance(s, list):
             s = s[0]
         return {"season": int(s), "episodes": [int(e) for e in eps]}
+    # Letzte Schicht: eine einzelne Zahl im Namen ("S04 (14)", "Titel - 14", "14") ist die Folge
+    tag, n = single_number_episode(stem, show_title)
+    if n:
+        sn = tag if tag is not None else g.get("season") if not isinstance(g.get("season"), list) else g["season"][0]
+        sn = sn if sn is not None else season
+        return {"season": int(sn) if sn is not None else 1, "episodes": [n]}
     return None
 
 
@@ -309,6 +433,9 @@ def episode_diagnosis(path: str, show_root: str):
     rel = os.path.relpath(os.path.dirname(path), show_root)
     folder = None if rel == "." else rel
     missing = [lab for k, lab in (("season", "Staffel"), ("episode", "Episode")) if g.get(k) is None]
+    tag, nums = number_candidates(stem)
+    if nums:
+        read["Zahlen"] = ", ".join(str(n[0]) for n in nums)
     return {"gelesen": read, "fehlt": missing, "ordner": folder}
 
 

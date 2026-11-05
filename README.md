@@ -150,7 +150,11 @@ docker compose up -d --build
 **Episoden-Erkennung:** Neben `S01E02` und `1x02` werden auch wörtliche Angaben gelesen: `Charmed_-_6_Staffel_-_Epi21`,
 `Staffel 6 - Folge 21`, `6. Staffel 21. Folge`, `Season 6 Episode 21`, `Folge 21-22` (Doppelfolge), `Ep21` (Staffel dann aus dem
 Staffelordner, sonst 1). Bisher „nicht erkannte“ Episoden werden beim nächsten Scan neu geprüft und – falls jetzt erkannt –
-zum Scrapen vorgemerkt. Nach dem Scrapen benennt **Umbenennen** sie nach deinem Muster um (Standard: `Serie - S06E21 - Titel`).
+zum Scrapen vorgemerkt. Die Erkennung arbeitet in Schichten, ohne dass Muster einzeln eingetragen werden müssen:
+Muster (`S01E02`, `1x02`, Wörter) → guessit → *einzelne Restzahl* (nach Abzug von Jahr, Auflösung, Codec, Audio, Serientitel:
+`S04 (14)`, `Serie - 14`, `14`) → *Ordnervergleich* (die Zahl, die von Datei zu Datei hochzählt, ist die Folge). Die Staffel kommt aus
+dem Namen oder einem Ordner (`Staffel 04`, `S04`, `4. Staffel`, `Season_4`, `04`), sonst 1. Bei nicht erkannten Dateien zeigt die
+Detailansicht die gefundenen Zahlen. zum Scrapen vorgemerkt. Nach dem Scrapen benennt **Umbenennen** sie nach deinem Muster um (Standard: `Serie - S06E21 - Titel`).
 
 **Dateien überspringen:** Trailer, Teaser, Featurettes, Zwischendateien (`.part`, `.temp`) und **Samples** werden nie als Film
 oder Episode erfasst – auch nicht, wenn „Sample“ mitten im Namen steht und nur noch Release-Angaben folgen
