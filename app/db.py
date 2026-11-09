@@ -111,7 +111,9 @@ def init():
         for table, col, typ in (("movies", "hints", "TEXT"), ("shows", "hints", "TEXT"),
                                 ("shows", "mapping", "TEXT"), ("shows", "has_theme", "INTEGER DEFAULT 0"),
                                 ("movies", "art_lock", "TEXT"), ("shows", "art_lock", "TEXT"),
-                                ("movies", "part_files", "TEXT")):
+                                ("movies", "part_files", "TEXT"),
+                                *((t, c, "TEXT") for t in ("movies", "shows", "episodes")
+                                  for c in ("lang", "lang_checked", "lang_retry"))):
             cols = [r[1] for r in c.execute(f"PRAGMA table_info({table})")]
             if col not in cols:
                 c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")

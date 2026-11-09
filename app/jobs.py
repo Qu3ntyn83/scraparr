@@ -7,7 +7,7 @@ import json
 import os
 import shutil
 
-from . import arr, config, db, emby, moviesets, renamer, scanner, scraper, tmdb
+from . import arr, config, language, db, emby, moviesets, renamer, scanner, scraper, tmdb
 from .http import SourceError
 
 _lock = threading.Lock()
@@ -108,6 +108,10 @@ def job_scan(kind="all"):
     if kind in ("all", "tv"):
         _progress("Serien werden gescannt …")
         scanner.scan_shows(_progress)
+    try:
+        language.check_library(_progress)
+    except Exception as e:  # noqa – Sprachprüfung darf den Scan nie scheitern lassen
+        db.log("WARN", f"Sprachprüfung: {type(e).__name__}: {e}")
     return False
 
 

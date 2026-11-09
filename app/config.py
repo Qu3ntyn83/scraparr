@@ -45,6 +45,8 @@ DEFAULTS = {
     "download_episode_thumbs": True,
     "download_season_posters": True,
     "season_nfo": True,
+    "lang_check": True,                # vorhandene NFOs auf Sprache prüfen, fremdsprachige neu scrapen
+    "lang_recheck_days": 30,           # Scraparr-NFOs ohne deutschen Text erst nach X Tagen erneut versuchen
     "download_tv_themes": True,              # Titelmelodie (theme.mp3) für Serien, Quelle: Plex über TVDB-ID
     "overwrite_artwork": False,
     # Trailer

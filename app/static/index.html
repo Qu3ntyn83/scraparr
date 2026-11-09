@@ -251,6 +251,9 @@
         <small>Kommagetrennte Ordnernamen. Genre-/Kategorie-Ordner (z. B. „09 - Action“) werden automatisch erkannt und durchsucht – nur Sammelordner mit gemischten Einzeldateien hier eintragen.</small></label>
       <label>Dateien überspringen (Wörter im Dateinamen) <input name="skip_words" placeholder="z. B. making of, bonus, extras">
         <small>Kommagetrennt, ganze Wörter. „Sample“, „Trailer“, „Teaser“ und Zwischendateien werden immer übersprungen; hier kannst du weitere Wörter eintragen. Wirkt beim nächsten Scan, bereits erfasste Treffer werden dort entfernt.</small></label>
+      <label class="chk"><input type="checkbox" name="lang_check"> Sprache vorhandener NFOs prüfen – nicht deutsche Beschreibungen neu scrapen</label>
+      <label>Erneuter Versuch nach (Tagen) <input name="lang_recheck_days" type="number" min="1" max="365">
+        <small>Hat Scraparr selbst schon gescrapt und es gab keinen deutschen Text, wird erst nach dieser Zeit wieder gesucht (TMDB-Übersetzungen kommen oft später).</small></label>
     </fieldset>
 
     <fieldset><legend>Artwork</legend>

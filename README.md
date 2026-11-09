@@ -147,6 +147,11 @@ git pull
 docker compose up -d --build
 ```
 
+**Sprachprüfung:** Nach jedem Scan liest Scraparr die Beschreibung (`<plot>`) vorhandener NFOs von Filmen, Serien und
+Episoden und erkennt die Sprache. Ist sie nicht deutsch (z. B. englische NFOs von tinyMediaManager), wird der Eintrag
+neu gescrapt – mit allen deutschen Quellen (TMDB, TVDB, fernsehserien.de). Gab es beim letzten Scraparr-Lauf keinen
+deutschen Text, wird erst nach 30 Tagen erneut versucht (einstellbar). Geprüft werden nur geänderte NFOs.
+
 **Staffelbeschreibung:** Liegen die Episoden in Staffelordnern, schreibt Scraparr dort eine `season.nfo` (Staffeltitel und Beschreibung von TMDB, deutsch mit englischem Fallback). Abschaltbar unter *Staffelposter laden*.
 
 **Episoden-Erkennung:** Neben `S01E02` und `1x02` werden auch wörtliche Angaben gelesen: `Charmed_-_6_Staffel_-_Epi21`,
