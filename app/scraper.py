@@ -594,6 +594,21 @@ def _merge_tvdb(season, season_no, tv_eps, primary):
             e["still_url"] = te["still_url"]
 
 
+def _write_season_nfos(meta, rows, season):
+    """season.nfo in jedem Staffelordner dieser Staffel (nur wenn es einen eigenen Staffelordner gibt)."""
+    done = set()
+    for e in rows:
+        d = os.path.dirname(e["path"])
+        if d in done or not parser.is_season_dir(os.path.basename(d)):
+            continue
+        done.add(d)
+        target_nfo = os.path.join(d, "season.nfo")
+        try:
+            nfo.write_season(target_nfo, e["season"], season, meta)
+        except OSError as ex:
+            db.log("WARN", f"season.nfo: {file_error(ex, d)}")
+
+
 def _scrape_episodes(show_id, meta, force, progress, season_cands=(), mapping=None):
     eps = db.query("SELECT * FROM episodes WHERE show_id=? AND season IS NOT NULL ORDER BY season", (show_id,))
     folder = db.one("SELECT folder FROM shows WHERE id=?", (show_id,))["folder"]
@@ -635,6 +650,8 @@ def _scrape_episodes(show_id, meta, force, progress, season_cands=(), mapping=No
         if tv_eps:
             _merge_tvdb(season, season_no, tv_eps, tvdb_primary)
         enrich.fill_episodes(meta, season_no, season["episodes"], cache)   # Trakt, fernsehserien.de
+        if config.get("season_nfo") and (season.get("plot") or season.get("name")):
+            _write_season_nfos(meta, rows, season)
         if config.get("download_season_posters") and not mapping:
             cands = list(season.get("poster_cands", [])) + [c for c in season_cands if c.get("season") == season_no]
             best = artwork.choose(cands, "poster")

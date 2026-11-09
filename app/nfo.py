@@ -135,6 +135,17 @@ def write_tvshow(path, m):
     _write(path, root)
 
 
+def write_season(path, season_no, s, show=None):
+    """season.nfo im Staffelordner: Staffeltitel und Beschreibung (Emby, Jellyfin, Kodi)."""
+    root = ET.Element("season")
+    _add(root, "title", s.get("name") or f"Staffel {season_no}")
+    _add(root, "plot", s.get("plot"))
+    _add(root, "seasonnumber", season_no)
+    if show:
+        _add(root, "showtitle", show.get("title"))
+    _write(path, root)
+
+
 def write_episode(path, show, episodes):
     """Mehrere <episodedetails> in einer Datei = Multi-Episode."""
     blocks = []

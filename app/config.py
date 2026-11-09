@@ -44,6 +44,7 @@ DEFAULTS = {
     "download_actor_images": False,
     "download_episode_thumbs": True,
     "download_season_posters": True,
+    "season_nfo": True,
     "download_tv_themes": True,              # Titelmelodie (theme.mp3) für Serien, Quelle: Plex über TVDB-ID
     "overwrite_artwork": False,
     # Trailer

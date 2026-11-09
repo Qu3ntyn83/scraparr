@@ -147,6 +147,8 @@ git pull
 docker compose up -d --build
 ```
 
+**Staffelbeschreibung:** Liegen die Episoden in Staffelordnern, schreibt Scraparr dort eine `season.nfo` (Staffeltitel und Beschreibung von TMDB, deutsch mit englischem Fallback). Abschaltbar unter *Staffelposter laden*.
+
 **Episoden-Erkennung:** Neben `S01E02` und `1x02` werden auch wörtliche Angaben gelesen: `Charmed_-_6_Staffel_-_Epi21`,
 `Staffel 6 - Folge 21`, `6. Staffel 21. Folge`, `Season 6 Episode 21`, `Folge 21-22` (Doppelfolge), `Ep21` (Staffel dann aus dem
 Staffelordner, sonst 1). Bisher „nicht erkannte“ Episoden werden beim nächsten Scan neu geprüft und – falls jetzt erkannt –
