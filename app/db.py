@@ -112,6 +112,7 @@ def init():
                                 ("shows", "mapping", "TEXT"), ("shows", "has_theme", "INTEGER DEFAULT 0"),
                                 ("movies", "art_lock", "TEXT"), ("shows", "art_lock", "TEXT"),
                                 ("movies", "part_files", "TEXT"),
+                                ("shows", "ep_missing", "INTEGER"), ("shows", "missing_eps", "TEXT"),
                                 *((t, c, "TEXT") for t in ("movies", "shows", "episodes")
                                   for c in ("lang", "lang_checked", "lang_retry"))):
             cols = [r[1] for r in c.execute(f"PRAGMA table_info({table})")]
@@ -123,7 +124,7 @@ def row(r):
     if r is None:
         return None
     d = dict(r)
-    for k in ("meta", "episodes", "hints", "mapping", "parts", "art_lock", "part_files"):
+    for k in ("meta", "episodes", "hints", "mapping", "parts", "art_lock", "part_files", "missing_eps"):
         if k in d and d[k]:
             try:
                 d[k] = json.loads(d[k])

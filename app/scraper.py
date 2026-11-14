@@ -10,7 +10,7 @@ import unicodedata
 
 import httpx
 
-from . import parser, resolvers, animelists, artpicker, artwork, config, db, emby, enrich, moviesets, nfo, paths, tmdb, tvdb
+from . import parser, resolvers, animelists, complete, artpicker, artwork, config, db, emby, enrich, moviesets, nfo, paths, tmdb, tvdb
 
 
 # ---------------------------------------------------------------- Matching
@@ -530,6 +530,8 @@ def scrape_show(show_id, tmdb_id=None, force=False, auto=False, progress=None):
                   **{k: int(v) for k, v in st.items()})
         emby.touch(s["folder"])
         db.log("INFO", f"Serie gescrapt: {meta['title']} – {ok} Episoden, {failed} ohne Treffer")
+        if complete.enabled():
+            complete.check_show(show_id, force=True)
         return True
     except tmdb.TMDBError as e:
         db.update("shows", show_id, status="fehler", message=str(e))
@@ -637,13 +639,8 @@ def _scrape_episodes(show_id, meta, force, progress, season_cands=(), mapping=No
             continue
         try:
             season = tmdb.season(meta["tmdb_id"], season_no)
-        except tmdb.TMDBError as ex:
-            if not (tvdb_primary and meta.get("tvdb_id")):
-                for e in todo:
-                    db.update("episodes", e["id"], status="fehler", message=f"Staffel {season_no}: {ex}")
-                failed += len(todo)
-                continue
-            season = {"episodes": {}, "poster_cands": []}     # TVDB übernimmt
+        except tmdb.TMDBError:
+            season = {"episodes": {}, "poster_cands": []}     # Staffel fehlt bei TMDB: TVDB/Ersatzquellen übernehmen
         if tv_eps is None:
             tv_eps = enrich.tvdb_episodes(meta, force_default=tvdb_primary and (
                 mapping is not None or hints.get("numbering") == "tvdb"))
@@ -662,6 +659,12 @@ def _scrape_episodes(show_id, meta, force, progress, season_cands=(), mapping=No
             _, nums = target(e)
             found = []
             for fn, n in zip(file_nums, nums):
+                if n not in season["episodes"]:
+                    fb = enrich.fallback_episode(meta, season_no, n, cache, file_no=fn, mapped=bool(mapping))
+                    if fb:
+                        season["episodes"][n] = fb
+                        db.log("INFO", f"{meta['title']} S{season_no:02d}E{n:02d}: nicht bei TMDB/TVDB – "
+                                       f"Daten von {fb['src_fallback']}")
                 if n in season["episodes"]:
                     # NFO bekommt die Nummer aus dem Dateinamen, Inhalte aus der zugeordneten Episode
                     found.append({**season["episodes"][n], "season": e["season"], "episode": fn})

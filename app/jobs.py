@@ -7,7 +7,7 @@ import json
 import os
 import shutil
 
-from . import arr, config, language, db, emby, moviesets, renamer, scanner, scraper, tmdb
+from . import arr, complete, config, language, db, emby, moviesets, renamer, scanner, scraper, tmdb
 from .http import SourceError
 
 _lock = threading.Lock()
@@ -108,6 +108,10 @@ def job_scan(kind="all"):
     if kind in ("all", "tv"):
         _progress("Serien werden gescannt …")
         scanner.scan_shows(_progress)
+        try:
+            complete.check_all(local_only=True)          # nur lokaler Vergleich, keine Online-Abfragen
+        except Exception as e:  # noqa
+            db.log("WARN", f"Vollständigkeit: {type(e).__name__}: {e}")
     try:
         language.check_library(_progress)
     except Exception as e:  # noqa – Sprachprüfung darf den Scan nie scheitern lassen
@@ -186,6 +190,15 @@ def job_scrape_shows(ids, force=False, auto=False):
         changed |= scraper.scrape_show(sid, force=force, auto=auto, progress=_progress)
         _step()
     return changed
+
+
+def job_complete(ids=None):
+    """Vollständigkeit aller (oder ausgewählter) Serien neu von der Quelle prüfen."""
+    n = db.one("SELECT COUNT(*) n FROM shows WHERE status='gescrapt' AND mapping IS NULL")["n"]
+    state["total"] = len(ids) if ids else n
+    inc = complete.check_all(ids=ids, force=True, progress=_progress, step=_step)
+    db.log("INFO", f"Vollständigkeit geprüft: {inc} Serie(n) mit fehlenden Folgen")
+    return False
 
 
 def job_scrape_one(kind, rid, tmdb_id):
@@ -294,6 +307,10 @@ def job_auto():
             plans = renamer.preview(movies, shows)
             if plans:
                 renamer.apply(plans)
+    try:   # Soll-Listen veralteter Serien nachladen (begrenzt, damit ein Lauf nicht ausufert)
+        complete.check_all(limit=40, progress=_progress)
+    except Exception as e:  # noqa
+        db.log("WARN", f"Vollständigkeit: {type(e).__name__}: {e}")
     try:   # Reihen auffrischen (nur veraltete) und Emby-Kollektionen nachziehen – auch für Filme vom letzten Lauf
         moviesets.refresh(progress=_progress)
         moviesets.emby_sync(progress=_progress)

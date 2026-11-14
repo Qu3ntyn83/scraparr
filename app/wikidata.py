@@ -75,6 +75,12 @@ def _claims(qid):
     return e.get("entities", {}).get(qid, {}).get("claims", {})
 
 
+def sitelink(qid, site="dewiki"):
+    """Artikeltitel in einem Wikimedia-Projekt (z. B. deutsche Wikipedia) – None, wenn es keinen gibt."""
+    e = _get({"action": "wbgetentities", "ids": qid, "props": "sitelinks", "sitefilter": site})
+    return ((e.get("entities", {}).get(qid, {}).get("sitelinks") or {}).get(site) or {}).get("title")
+
+
 def _values(claims, prop):
     out = []
     for c in claims.get(prop, []):

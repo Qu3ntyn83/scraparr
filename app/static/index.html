@@ -57,6 +57,7 @@
         <option value="fehler">Fehler</option>
         <option value="gescrapt">Gescrapt</option>
         <option value="incomplete">Unvollständig</option>
+        <option value="ep_missing" class="only-shows">Serie unvollständig (Folgen fehlen)</option>
         <option value="ep_err" class="only-shows">Folgen mit Fehlern</option>
         <option value="ep_unrec" class="only-shows">Folgen nicht erkannt</option>
         <option value="ep_notfound" class="only-shows">Folgen nicht bei TMDB/TVDB</option>
@@ -69,6 +70,7 @@
       <button class="btn small ghost" id="btn-rescrape" title="Ausgewählte komplett neu scrapen, Artwork überschreiben">Neu scrapen</button>
       <button class="btn small ghost" id="btn-rename">Umbenennen</button>
       <button class="btn small ghost hidden" id="btn-merge" title="Ausgewählte Einträge (z. B. CD1 und CD2) zu einem Film verschmelzen">Verschmelzen</button>
+      <button class="btn small ghost hidden" id="btn-complete" title="Für ausgewählte (oder alle) Serien prüfen, ob ausgestrahlte Folgen fehlen">Vollständigkeit</button>
       <button class="btn small ghost hidden" id="btn-themes" title="Titelmelodien für ausgewählte (oder alle) Serien ohne Theme laden">♪ Themes</button>
     </div>
     <div class="table-wrap">
@@ -83,7 +85,7 @@
           <th class="c-ic" title="Fanart">Fan</th>
           <th class="c-ic" title="Trailer">Trl</th>
           <th class="c-ic c-theme hidden" title="Titelmelodie (theme.mp3)">Thm</th>
-          <th class="c-ep hidden" title="Episoden gescrapt / gesamt">Ep.</th>
+          <th class="c-ep hidden" title="Episoden gescrapt / vorhanden · !Fehler · −fehlende Folgen">Ep.</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -202,6 +204,14 @@
         <div class="src">
           <div class="src-h"><b>Ausweichsuche</b><span>Titel, die TMDB nicht kennt (Anime, Dokus, TV-Produktionen)</span></div>
           <label class="chk"><input type="checkbox" name="fallback_search"> Aktiv <small>(sucht dann bei TVDB, AniList und Wikidata und ordnet über deren IDs TMDB zu)</small></label>
+        </div>
+        <div class="src">
+          <div class="src-h"><b>Lückenfüller</b><span>TVmaze, Kitsu, Wikipedia – ohne Key; nur gefragt, wenn die Hauptquellen nichts liefern</span></div>
+          <label class="chk"><input type="checkbox" name="fallback_episodes"> Folgen, die TMDB/TVDB nicht führen, von fernsehserien.de holen <small>(deutsch – Dokus, deutsche TV-Produktionen)</small></label>
+          <label class="chk"><input type="checkbox" name="tvmaze_enabled"> TVmaze <small>(Folgen, die sonst fehlen – englisch)</small></label>
+          <label class="chk"><input type="checkbox" name="kitsu_enabled"> Kitsu <small>(Anime-Episoden über die Anime-Zuordnung – englisch)</small></label>
+          <label class="chk"><input type="checkbox" name="wikipedia_enabled"> Deutsche Wikipedia <small>(Beschreibung, wenn es sonst nur englischen Text gibt; braucht Wikidata)</small></label>
+          <div class="row"><button class="btn small ghost" type="button" data-test="extra">Testen</button><span class="hint" data-res="extra"></span></div>
         </div>
         <div class="src">
           <div class="src-h"><b>Wikidata</b><span>FSK-Freigabe und OFDb-Zuordnung (ohne Key)</span></div>
@@ -337,6 +347,15 @@
           <div class="row"><button class="btn small ghost" type="button" data-test="sonarr">Testen</button><span class="hint" data-res="sonarr"></span></div>
         </div>
       </div>
+      <div class="cols2">
+        <label>Radarr: Root-Ordner für neue Filme <input name="radarr_root_folder" placeholder="leer = erster Root-Ordner"></label>
+        <label>Radarr: Qualitätsprofil <input name="radarr_quality_profile" placeholder="leer = erstes Profil"></label>
+        <label>Sonarr: Root-Ordner für neue Serien <input name="sonarr_root_folder" placeholder="leer = erster Root-Ordner"></label>
+        <label>Sonarr: Qualitätsprofil <input name="sonarr_quality_profile" placeholder="leer = erstes Profil"></label>
+      </div>
+      <div class="row"><button class="btn small ghost" type="button" id="arr-options">Verfügbare Ordner und Profile anzeigen</button><span class="hint" id="arr-options-res"></span></div>
+      <label class="chk"><input type="checkbox" name="complete_check"> Unvollständige Serien erkennen (fehlende, bereits ausgestrahlte Folgen)</label>
+      <label class="chk"><input type="checkbox" name="arr_search_on_request"> Bei Übergabe fehlender Folgen/Filme sofort die Suche in Sonarr/Radarr starten</label>
       <label class="chk"><input type="checkbox" name="arr_auto_ids"> Offene oder unklare Titel automatisch mit der ID aus Radarr/Sonarr zuordnen</label>
       <label class="chk"><input type="checkbox" name="sonarr_episode_numbers"> Nicht erkannte Episoden mit Sonarrs Nummerierung versehen</label>
       <div class="webhooks">

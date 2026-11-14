@@ -31,6 +31,9 @@ und legt alles so ab, dass **Emby oder Jellyfin** (und Kodi) es lokal einliest.
 | **Trakt** | ja (Client-ID einer kostenlosen API-App) | deutsche Übersetzungen für Filme, Serien und **einzelne Episoden** |
 | **fernsehserien.de** | nein | deutsche Episodentitel und -inhalte, wie sie im deutschen TV/Streaming liefen |
 | **anime-lists** (Fribb) | nein | Anime-Zuordnung AniDB/AniList/MAL/Kitsu/aniSearch ↔ TMDB/TVDB inkl. Staffel und Episodenversatz |
+| **TVmaze** | nein | Folgen, die TMDB/TVDB nicht führen (englisch, Datum, Episodenbild) |
+| **Kitsu** | nein | Anime-Episoden über die Kitsu-ID der Anime-Zuordnung (englisch) |
+| **Wikipedia (de)** | nein | deutsche Beschreibung für Filme/Serien, wenn es sonst nur englischen Text gibt |
 
 Ohne Key ist eine Quelle einfach inaktiv. Die Detailansicht zeigt pro Titel, woher Inhalt, FSK,
 Wertungen und jedes Bild stammen.
@@ -146,6 +149,26 @@ cd /opt/scraparr
 git pull
 docker compose up -d --build
 ```
+
+**Lückenfüller-Quellen (ohne Key):** Greifen nur, wenn TMDB/TVDB nichts (Deutsches) liefern.
+* *fernsehserien.de als Strukturquelle* – Folgen, die TMDB/TVDB gar nicht führen (Dokureihen, deutsche TV-Produktionen),
+  bekommen Titel und Inhalt auf Deutsch von dort.
+* *TVmaze* – dieselbe Lücke für internationale Serien (englisch, mit Datum und Episodenbild).
+* *Kitsu* – Anime-Episoden über die Kitsu-ID der Anime-Zuordnung (englisch); bei AniDB-Stil-Ordnern mit eigener Zählung.
+* *Deutsche Wikipedia* – Einleitung des Artikels als Beschreibung für Filme und Serien, wenn es sonst nur englischen Text
+  gibt. Der Artikel wird über den Wikidata-Eintrag gefunden, nicht über eine Titelsuche.
+
+Fehlt eine ganze Staffel bei TMDB, bricht der Scrape nicht mehr ab – TVDB und die Lückenfüller übernehmen.
+
+**Vollständigkeit:** Für jede gescrapte Serie vergleicht Scraparr die vorhandenen Dateien mit den bereits ausgestrahlten
+Folgen laut TMDB (bzw. TVDB, wenn das die Episoden-Quelle ist). Specials und künftige Folgen zählen nicht. In der Serienliste
+steht dann `−n` neben den Episoden, der Filter *Serie unvollständig* zeigt alle Betroffenen, und die Detailansicht listet die
+fehlenden Folgen je Staffel. **Fehlende an Sonarr übergeben** überwacht genau diese Folgen in Sonarr und startet die Suche;
+kennt Sonarr die Serie noch nicht, wird sie mit dem vorhandenen Ordner angelegt. Bei Kollektionen übergibt **Fehlende an
+Radarr übergeben** die fehlenden Filme der Reihe (einzeln über *→ Radarr*). Root-Ordner, Qualitätsprofil und „sofort suchen“
+stehen unter *Einstellungen → Radarr & Sonarr*. Die Soll-Listen werden zwischengespeichert (laufende Serien 7 Tage, beendete
+60) – nach einem Scan wird nur lokal neu verglichen. Serien mit Anime-Sonderzuordnung (Ordner = einzelne Staffel) werden
+nicht geprüft.
 
 **Sprachprüfung:** Nach jedem Scan liest Scraparr die Beschreibung (`<plot>`) vorhandener NFOs von Filmen, Serien und
 Episoden und erkennt die Sprache. Ist sie nicht deutsch (z. B. englische NFOs von tinyMediaManager), wird der Eintrag

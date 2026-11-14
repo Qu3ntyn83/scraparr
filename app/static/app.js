@@ -63,6 +63,7 @@ function show(view) {
     $(".c-ep").classList.toggle("hidden", view !== "shows");
     $(".c-theme").classList.toggle("hidden", view !== "shows");
     $("#btn-themes").classList.toggle("hidden", view !== "shows");
+    $("#btn-complete").classList.toggle("hidden", view !== "shows");
     $$("#filter-status .only-shows").forEach((o) => { o.hidden = o.disabled = view !== "shows"; });
     if (view !== "shows" && $("#filter-status").value.startsWith("ep_")) $("#filter-status").value = "";
     $("#btn-rescrape").title = view === "shows" ? "Serie inkl. aller Episoden neu scrapen" : "Ausgewählte komplett neu scrapen, Artwork überschreiben";
@@ -97,6 +98,7 @@ function filtered() {
   let list = S.items.filter((i) => {
     if (q && !`${i.title} ${i.guess_title} ${i.original_title} ${i.path || i.folder}`.toLowerCase().includes(q)) return false;
     if (st === "incomplete") return !(i.has_nfo && i.has_poster && i.has_fanart);
+    if (st === "ep_missing") return i.ep_missing > 0;
     if (st === "ep_err") return i.ep_err > 0;
     if (st === "ep_unrec") return i.ep_unrec > 0;
     if (st === "ep_notfound") return (i.ep_err || 0) - (i.ep_unrec || 0) > 0;
@@ -131,7 +133,7 @@ function renderList() {
       <td class="c-ic">${dot(i.has_nfo)}</td><td class="c-ic">${dot(i.has_poster)}</td>
       <td class="c-ic">${dot(i.has_fanart)}</td><td class="c-ic">${dot(i.has_trailer)}</td>
       ${shows ? `<td class="c-ic">${dot(i.has_theme)}</td>` : ""}
-      ${shows ? `<td class="c-ep">${i.ep_ok || 0}/${i.ep_total || 0}${i.ep_err ? ` <span style="color:var(--err)">!${i.ep_err}</span>` : ""}</td>` : ""}
+      ${shows ? `<td class="c-ep">${i.ep_ok || 0}/${i.ep_total || 0}${i.ep_err ? ` <span style="color:var(--err)">!${i.ep_err}</span>` : ""}${i.ep_missing ? ` <span class="ep-miss" title="${i.ep_missing} ausgestrahlte Folgen fehlen in der Bibliothek">−${i.ep_missing}</span>` : ""}</td>` : ""}
     </tr>`;
   }).join("");
   const empty = $("#list-empty");
@@ -255,6 +257,7 @@ function renderDetail(d) {
       </div>
     </div>
     <div class="section">
+      ${movie ? "" : renderMissing(d)}
       <div class="files">
         <div class="file">${dot(d.has_nfo)} NFO</div><div class="file">${dot(d.has_poster)} Poster</div>
         <div class="file">${dot(d.has_fanart)} Fanart</div><div class="file">${dot(d.has_trailer)} Trailer</div>
@@ -267,6 +270,44 @@ function renderDetail(d) {
       ${movie ? "" : renderEpisodes(d)}
     </div>`;
 }
+
+// Zahlenliste kompakt: [1,2,3,5] -> "E01–E03, E05"
+function epRanges(nums) {
+  const p = (n) => "E" + String(n).padStart(2, "0");
+  const out = []; let a = null, b = null;
+  [...nums].sort((x, y) => x - y).forEach((n) => {
+    if (a === null) { a = b = n; } else if (n === b + 1) { b = n; } else { out.push(a === b ? p(a) : `${p(a)}–${p(b)}`); a = b = n; }
+  });
+  if (a !== null) out.push(a === b ? p(a) : `${p(a)}–${p(b)}`);
+  return out.join(", ");
+}
+
+function renderMissing(d) {
+  const mi = d.missing_eps;
+  if (!mi || !mi.n) return "";
+  const rows = Object.entries(mi.seasons || {}).filter(([, v]) => v.missing.length).sort((x, y) => +x[0] - +y[0]).map(([s, v]) =>
+    `<li><b>Staffel ${esc(s)}</b> <span>${v.missing.length === v.total ? `ganze Staffel fehlt (${v.total} Folgen)` : esc(epRanges(v.missing))}</span></li>`).join("");
+  const sonarr = S.arr?.sonarr
+    ? `<button class="btn small" id="btn-req-sonarr" data-id="${d.id}">Fehlende an Sonarr übergeben</button>`
+    : `<span class="hint">Sonarr ist nicht eingerichtet – Übergabe unter Einstellungen → Radarr &amp; Sonarr aktivieren.</span>`;
+  return `<div class="incomplete">
+    <div class="inc-h"><b>Serie unvollständig</b><span>${mi.n} von ${mi.total} ausgestrahlten Folgen fehlen · laut ${esc(mi.source || "TMDB")}, geprüft ${mi.checked ? new Date(mi.checked).toLocaleDateString("de-DE") : "–"}</span></div>
+    <ul class="inc-list">${rows}</ul>
+    <div class="inc-act">${sonarr}<button class="btn small ghost" id="btn-recheck" data-id="${d.id}">Neu prüfen</button></div>
+  </div>`;
+}
+$("#detail").addEventListener("click", async (e) => {
+  const rq = e.target.closest("#btn-req-sonarr"), rc = e.target.closest("#btn-recheck");
+  if (rc) return runJob("/api/shows/complete", { ids: [+rc.dataset.id], force: true });
+  if (!rq) return;
+  rq.disabled = true; rq.textContent = "Übergebe …";
+  try {
+    const r = await api("POST", `/api/shows/${rq.dataset.id}/request`);
+    toast(r.added ? `Serie in Sonarr angelegt – ${r.episodes} fehlende Folgen werden überwacht${r.searched ? " und gesucht" : ""}`
+      : `${r.episodes} Folgen in Sonarr überwacht${r.searched ? ", Suche gestartet" : ""}${r.not_found ? ` · ${r.not_found} kennt Sonarr nicht` : ""}`);
+    rq.textContent = "An Sonarr übergeben ✓";
+  } catch (err) { toast(err.message, true); rq.disabled = false; rq.textContent = "Fehlende an Sonarr übergeben"; }
+});
 
 function renderParts(d) {
   const rel = (p) => p.startsWith(d.folder + "/") ? p.slice(d.folder.length + 1) : p;
@@ -392,7 +433,10 @@ function sourcesRow(m) {
 function epSrc(e) {
   if (!Array.isArray(e.meta)) return "";
   const src = [...new Set(e.meta.flatMap((m) => [m.src_title, m.src_plot]).filter(Boolean))];
-  return src.length ? ` · deutsch via ${esc(src.join(" + "))}` : "";
+  const fb = [...new Set(e.meta.map((m) => m.src_fallback).filter(Boolean))];
+  const de = src.length ? ` · deutsch via ${esc(src.join(" + "))}` : "";
+  const en = fb.filter((f) => !src.includes(f));
+  return de + (en.length ? ` · nicht bei TMDB – Daten von ${esc(en.join(" + "))} (englisch)` : (fb.length && !de ? ` · nicht bei TMDB – Daten von ${esc(fb.join(" + "))}` : ""));
 }
 
 function fmtSize(n) {
@@ -476,6 +520,7 @@ $("#btn-merge").addEventListener("click", async () => {
   } catch (e) { toast(e.message, true); }
 });
 $("#btn-themes").addEventListener("click", () => runJob("/api/shows/themes", { ids: [...S.selected], force: false }));
+$("#btn-complete").addEventListener("click", () => runJob("/api/shows/complete", { ids: [...S.selected], force: true }));
 
 // ------------------------------------------------------------ Suche
 function openSearch() {
@@ -566,6 +611,7 @@ async function pollStatus() {
     const s = await api("GET", "/api/status");
     const j = s.job;
     if ((s.server || "Emby") !== SRV()) { S.srv = s.server || "Emby"; $$(".srv").forEach((e) => (e.textContent = S.srv)); }
+    S.arr = { radarr: !!s.radarr, sonarr: !!s.sonarr };
     $("#no-key").classList.toggle("hidden", s.api_key);
     $("#job-idle").classList.toggle("hidden", j.running);
     $("#job-run").classList.toggle("hidden", !j.running);
@@ -646,6 +692,17 @@ $$("[data-test]").forEach((b) => b.addEventListener("click", async () => {
     out.className = "hint " + (r.ok ? "ok" : "err"); out.textContent = r.msg;
   } catch (e) { out.className = "hint err"; out.textContent = e.message; }
 }));
+$("#arr-options").addEventListener("click", async () => {
+  const out = $("#arr-options-res"); out.className = "hint"; out.textContent = "Lade … (vorher speichern!)";
+  const parts = [];
+  for (const sys of ["radarr", "sonarr"]) {
+    try {
+      const o = await api("GET", `/api/arr/${sys}/options`);
+      parts.push(`${sys === "radarr" ? "Radarr" : "Sonarr"} – Ordner: ${o.roots.join(", ") || "–"} · Profile: ${o.profiles.join(", ") || "–"}`);
+    } catch (e) { parts.push(`${sys === "radarr" ? "Radarr" : "Sonarr"}: ${e.message}`); }
+  }
+  out.textContent = parts.join("  |  ");
+});
 $("#test-emby").addEventListener("click", () => testConn("emby"));
 
 // ------------------------------------------------------------ Start
@@ -782,6 +839,11 @@ async function openSet(cid) {
             <button class="btn ghost" data-setact="refresh" data-id="${c.tmdb_id}">⟳ Neu von TMDB</button>
             ${SETS.emby ? `<button class="btn" data-setact="emby" data-id="${c.tmdb_id}">Nach ${SRV()} übertragen</button>` : ""}
           </div>
+          ${parts.some((p) => !p.owned) ? `<div class="incomplete">
+            <div class="inc-h"><b>Reihe unvollständig</b><span>${parts.filter((p) => !p.owned).length} von ${parts.length} Filmen fehlen</span></div>
+            <div class="inc-act">${S.arr?.radarr ? `<button class="btn small" data-radarr="${c.tmdb_id}">Fehlende an Radarr übergeben</button>`
+              : `<span class="hint">Radarr ist nicht eingerichtet – Übergabe unter Einstellungen → Radarr &amp; Sonarr aktivieren.</span>`}</div>
+          </div>` : ""}
         </div>
       </div>
     </div>
@@ -789,11 +851,26 @@ async function openSet(cid) {
       <div class="set-part ${p.owned ? "own" : "miss"}" ${p.movie_id ? `data-movie="${p.movie_id}"` : ""}>
         <div class="pp" style="${p.poster ? `background-image:url('${esc(p.poster)}')` : ""}"></div>
         <div class="pt"><b>${esc(p.title)}</b><span>${esc(p.year || "")}</span></div>
+        ${!p.owned && S.arr?.radarr ? `<button class="btn small ghost" data-radarr="${c.tmdb_id}" data-tmdb="${p.tmdb_id}" title="Diesen Film an Radarr übergeben">→ Radarr</button>` : ""}
         <span class="tbadge ${p.owned ? "ok" : "fehlt"}">${p.owned ? "vorhanden" : "fehlt"}</span>
       </div>`).join("")}</div>`;
   $("#dlg-set").showModal();
 }
-$("#set-body").addEventListener("click", (e) => {
+$("#set-body").addEventListener("click", async (e) => {
+  const rd = e.target.closest("[data-radarr]");
+  if (rd) {
+    const label = rd.textContent;
+    rd.disabled = true; rd.textContent = "Übergebe …";
+    try {
+      const r = await api("POST", `/api/collections/${rd.dataset.radarr}/request`, { tmdb_ids: rd.dataset.tmdb ? [+rd.dataset.tmdb] : [] });
+      const bits = [r.added.length ? `${r.added.length} in Radarr angelegt` : "", r.searched.length ? `${r.searched.length} ${r.search ? "zur Suche gegeben" : "überwacht"}` : "",
+        r.present.length ? `${r.present.length} hat Radarr schon` : "", r.failed.length ? `${r.failed.length} fehlgeschlagen: ${r.failed[0]}` : ""].filter(Boolean);
+      toast(bits.join(" · ") || "Nichts zu tun", !!r.failed.length && !r.added.length && !r.searched.length);
+      rd.textContent = r.failed.length && !r.added.length && !r.searched.length ? label : "Übergeben ✓";
+      rd.disabled = rd.textContent !== label;
+    } catch (err) { toast(err.message, true); rd.disabled = false; rd.textContent = label; }
+    return;
+  }
   const a = e.target.closest("[data-setact]");
   if (a) { $("#dlg-set").close(); return runJob(`/api/collections/${a.dataset.setact}`, { ids: [+a.dataset.id] }); }
   const m = e.target.closest("[data-movie]");

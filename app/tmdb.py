@@ -313,6 +313,20 @@ def season(tmdb_id, season_no):
             "poster_cands": cands, "episodes": eps}
 
 
+def aired_episodes(tmdb_id, seasons):
+    """{(staffel, nr): {"aired", "title"}} für die genannten Staffeln – bis zu 20 Staffeln pro Anfrage."""
+    lang = _langs()[0]
+    seasons = sorted({int(s) for s in seasons if s})
+    out = {}
+    for i in range(0, len(seasons), 20):
+        chunk = seasons[i:i + 20]
+        d = get(f"/tv/{int(tmdb_id)}", language=lang, append_to_response=",".join(f"season/{n}" for n in chunk))
+        for n in chunk:
+            for e in (d.get(f"season/{n}") or {}).get("episodes", []):
+                out[(n, e["episode_number"])] = {"aired": e.get("air_date"), "title": e.get("name") or ""}
+    return out
+
+
 def collection(coll_id):
     """Filmreihe: deutscher Name/Text (Fallback englisch), Poster/Fanart-Kandidaten, alle Teile."""
     lang, short, fb = _langs()

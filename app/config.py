@@ -19,6 +19,10 @@ DEFAULTS = {
     "ofdb_enabled": os.environ.get("OFDB_ENABLED", "true").lower() == "true",
     "fallback_search": True,          # nicht gefundene Titel über TVDB/AniList/Wikidata zuordnen
     "wikidata_enabled": True,
+    "tvmaze_enabled": True,                  # TVmaze: Folgen, die TMDB/TVDB nicht führen (englisch), ohne Key
+    "kitsu_enabled": True,                   # Kitsu: Anime-Episoden über die Kitsu-ID, ohne Key
+    "wikipedia_enabled": True,               # deutsche Wikipedia-Einleitung als Beschreibung, wenn sonst nur englisch
+    "fallback_episodes": True,               # fernsehserien.de auch für Folgen nutzen, die TMDB/TVDB gar nicht führen
     # Quellen-Logik
     "fsk_order": "ofdb,tmdb,wikidata",       # erste Quelle mit Treffer gewinnt
     "plot_fallback_ofdb": True,              # deutsche OFDb-Inhaltsangabe statt englischem TMDB-Text
@@ -45,6 +49,7 @@ DEFAULTS = {
     "download_episode_thumbs": True,
     "download_season_posters": True,
     "season_nfo": True,
+    "complete_check": True,            # fehlende (bereits ausgestrahlte) Folgen je Serie ermitteln
     "lang_check": True,                # vorhandene NFOs auf Sprache prüfen, fremdsprachige neu scrapen
     "lang_recheck_days": 30,           # Scraparr-NFOs ohne deutschen Text erst nach X Tagen erneut versuchen
     "download_tv_themes": True,              # Titelmelodie (theme.mp3) für Serien, Quelle: Plex über TVDB-ID
@@ -83,6 +88,11 @@ DEFAULTS = {
     "sonarr_api_key": os.environ.get("SONARR_API_KEY", ""),
     "sonarr_path_map": os.environ.get("SONARR_PATH_MAP", ""),
     "arr_auto_ids": True,                    # offene/unklare Titel mit Radarr-/Sonarr-ID zuordnen
+    "radarr_root_folder": "",                # leer = erster Root-Ordner in Radarr
+    "radarr_quality_profile": "",            # Name oder ID; leer = erstes Profil
+    "sonarr_root_folder": "",
+    "sonarr_quality_profile": "",
+    "arr_search_on_request": True,           # bei Übergabe fehlender Titel sofort die Suche starten
     "sonarr_episode_numbers": True,          # nicht erkannte Episoden mit Sonarrs Nummerierung versehen
     "webhook_token": os.environ.get("WEBHOOK_TOKEN", ""),
     "webhook_delay_sec": 30,                 # Wartezeit, um Staffelpakete gesammelt zu verarbeiten

@@ -85,7 +85,7 @@ table.list tr.active { background: var(--sel); }
 .c-year { width: 52px; color: var(--muted); }
 .c-fsk { width: 46px; }
 .c-ic { width: 34px; text-align: center !important; }
-.c-ep { width: 64px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.c-ep { width: 104px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
 .ic { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #3a3f4b; }
 .ic.y { background: var(--ok); }
 .st { display: inline-block; font-size: 10.5px; padding: 0 6px; border-radius: 99px; margin-left: 6px; vertical-align: 1px; font-weight: 600; }
@@ -454,3 +454,17 @@ fieldset, .src, .src-grid > * { min-width: 0; }
 .parts-h span { color: var(--muted); }
 .parts ol { margin: 8px 0; padding-left: 22px; font-size: 12.5px; }
 .parts li { margin: 2px 0; word-break: break-all; }
+
+/* Vollständigkeit */
+.ep-miss { color: var(--warn); }
+.incomplete { margin: 0 0 14px; padding: 10px 12px; border: 1px solid #5a4317; border-left: 3px solid var(--warn); border-radius: 6px; background: #2a2110; font-size: 13px; }
+.inc-h { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.inc-h b { color: #f3d39b; }
+.inc-h span { color: var(--muted); font-size: 12px; }
+.inc-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 3px; max-height: 180px; overflow: auto; }
+.inc-list li { display: flex; gap: 8px; }
+.inc-list b { flex: 0 0 76px; font-weight: 600; }
+.inc-list span { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.inc-act { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.set-part .btn.small { padding: 2px 8px; font-size: 11px; }
+.set-hero .incomplete { margin: 14px 0 0; }

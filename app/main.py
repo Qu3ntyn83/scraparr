@@ -12,11 +12,11 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import (animelists, arr, artpicker, config, db, emby, fanart, fernsehserien, jobs, moviesets, nfo, ofdb, omdb, parser, paths, renamer,
+from . import (animelists, arr, artpicker, config, db, emby, extra, fanart, fernsehserien, jobs, moviesets, nfo, ofdb, omdb, parser, paths, renamer,
                scraper, tmdb, trakt, tvdb, wikidata)
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 NO_CACHE = {"Cache-Control": "no-cache"}
 CACHE = os.path.join(db.DATA_DIR, "cache")
 SECRET_KEYS = ("tmdb_api_key", "emby_api_key", "tvdb_api_key", "tvdb_pin", "fanart_api_key",
@@ -69,7 +69,8 @@ def status():
     return {"job": {k: v for k, v in jobs.state.items() if k != "cancel"},
             "movies": counts("movies"), "shows": counts("shows"), "episodes": counts("episodes"),
             "api_key": bool(config.get("tmdb_api_key")), "version": VERSION,
-            "server": emby.name() if emby.enabled() else None}
+            "server": emby.name() if emby.enabled() else None,
+            "radarr": arr.enabled("radarr"), "sonarr": arr.enabled("sonarr")}
 
 
 @app.get("/api/settings")
@@ -111,7 +112,7 @@ def test_tmdb():
 @app.post("/api/test/{source}")
 def test_source(source: str):
     mods = {"tvdb": tvdb, "fanart": fanart, "omdb": omdb, "ofdb": ofdb, "wikidata": wikidata, "trakt": trakt,
-            "fernsehserien": fernsehserien, "animelists": animelists}
+            "fernsehserien": fernsehserien, "animelists": animelists, "extra": extra}
     if source == "emby":
         return emby.test()
     if source in ("radarr", "sonarr"):
@@ -190,6 +191,34 @@ def collections_action(action: str, body: CollAction):
         raise HTTPException(400, "Kein Medienserver (Emby/Jellyfin) eingerichtet")
     name = "Kollektionen von TMDB laden" if action == "refresh" else f"Kollektionen nach {emby.name()}"
     return _start(name, jobs.job_collections, action, body.ids or None)
+
+
+class TmdbIds(BaseModel):
+    tmdb_ids: list[int] = []
+
+
+@app.post("/api/collections/{cid}/request")
+def collection_request(cid: int, body: TmdbIds):
+    """Fehlende Filme einer Reihe (oder nur die genannten) an Radarr übergeben."""
+    d = moviesets.detail(cid)
+    missing = [p["tmdb_id"] for p in d.get("parts", []) if not p.get("owned")]
+    ids = [t for t in (body.tmdb_ids or missing) if t in missing]
+    if not ids:
+        raise HTTPException(400, "In dieser Reihe fehlt kein Film")
+    try:
+        return arr.request_movies(ids)
+    except SourceError as e:
+        raise HTTPException(502, str(e))
+
+
+@app.get("/api/arr/{system}/options")
+def arr_options(system: str):
+    if system not in ("radarr", "sonarr"):
+        raise HTTPException(404)
+    try:
+        return arr.options(system)
+    except SourceError as e:
+        raise HTTPException(502, str(e))
 
 
 # ---------------------------------------------------------------- Abgleich
@@ -343,7 +372,7 @@ def shows():
     return db.query(
         "SELECT s.id, s.folder, s.guess_title, s.guess_year, s.tmdb_id, s.title, s.original_title, s.year, "
         "s.fsk, s.status, s.message, s.has_nfo, s.has_poster, s.has_fanart, s.has_trailer, s.has_theme, s.added, "
-        "COUNT(e.id) AS ep_total, SUM(e.status='gescrapt') AS ep_ok, SUM(e.status='fehler') AS ep_err, "
+        "s.ep_missing, COUNT(e.id) AS ep_total, SUM(e.status='gescrapt') AS ep_ok, SUM(e.status='fehler') AS ep_err, "
         "SUM(e.status='fehler' AND e.season IS NULL) AS ep_unrec "
         "FROM shows s LEFT JOIN episodes e ON e.show_id=s.id GROUP BY s.id "
         "ORDER BY COALESCE(s.title, s.guess_title) COLLATE NOCASE")
@@ -374,6 +403,20 @@ def show(sid: int):
 def shows_scrape(body: Ids):
     ids = body.ids or [r["id"] for r in db.query("SELECT id FROM shows WHERE status!='gescrapt'")]
     return _start(f"{len(ids)} Serie(n) scrapen", jobs.job_scrape_shows, ids, body.force)
+
+
+@app.post("/api/shows/complete")
+def shows_complete(body: Ids):
+    return _start("Vollständigkeit prüfen", jobs.job_complete, body.ids or None)
+
+
+@app.post("/api/shows/{sid}/request")
+def show_request(sid: int):
+    """Fehlende Folgen an Sonarr übergeben."""
+    try:
+        return arr.request_episodes(sid)
+    except SourceError as e:
+        raise HTTPException(502, str(e))
 
 
 @app.post("/api/shows/themes")
