@@ -369,6 +369,22 @@
 </main>
 
 <!-- ===================== Dialoge ===================== -->
+<dialog id="dlg-arr" class="dlg">
+  <form method="dialog" class="dlg-head"><h3 id="arr-title">Übergabe</h3><button class="icon-btn" value="cancel">✕</button></form>
+  <div class="dlg-body arr-form">
+    <div class="hint" id="arr-what"></div>
+    <label>Qualitätsprofil <select id="arr-profile"></select></label>
+    <label>Root-Ordner für neu angelegte Titel <select id="arr-root"></select></label>
+    <label class="chk"><input type="checkbox" id="arr-existing"> Profil auch bei Titeln setzen, die <span id="arr-sys">Sonarr</span> schon kennt</label>
+    <label class="chk"><input type="checkbox" id="arr-search"> Suche sofort starten</label>
+    <div class="dlg-foot">
+      <span class="hint">Vorauswahl aus den Einstellungen</span>
+      <button class="btn ghost" type="button" id="arr-cancel">Abbrechen</button>
+      <button class="btn" type="button" id="arr-ok">Übergeben</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="dlg-search" class="dlg wide">
   <form method="dialog" class="dlg-head"><h3>Suchen &amp; Zuordnen</h3><button class="icon-btn">✕</button></form>
   <div class="dlg-body">

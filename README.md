@@ -165,8 +165,9 @@ Folgen laut TMDB (bzw. TVDB, wenn das die Episoden-Quelle ist). Specials und kü
 steht dann `−n` neben den Episoden, der Filter *Serie unvollständig* zeigt alle Betroffenen, und die Detailansicht listet die
 fehlenden Folgen je Staffel. **Fehlende an Sonarr übergeben** überwacht genau diese Folgen in Sonarr und startet die Suche;
 kennt Sonarr die Serie noch nicht, wird sie mit dem vorhandenen Ordner angelegt. Bei Kollektionen übergibt **Fehlende an
-Radarr übergeben** die fehlenden Filme der Reihe (einzeln über *→ Radarr*). Root-Ordner, Qualitätsprofil und „sofort suchen“
-stehen unter *Einstellungen → Radarr & Sonarr*. Die Soll-Listen werden zwischengespeichert (laufende Serien 7 Tage, beendete
+Radarr übergeben** die fehlenden Filme der Reihe (einzeln über *→ Radarr*). Vor jeder Übergabe fragt ein Dialog nach Qualitätsprofil,
+Root-Ordner und „sofort suchen“; die Vorauswahl kommt aus *Einstellungen → Radarr & Sonarr*. Das Profil gilt für neu
+angelegte Titel – auf Wunsch auch für solche, die Radarr/Sonarr schon kennt. Die Soll-Listen werden zwischengespeichert (laufende Serien 7 Tage, beendete
 60) – nach einem Scan wird nur lokal neu verglichen. Serien mit Anime-Sonderzuordnung (Ordner = einzelne Staffel) werden
 nicht geprüft.
 

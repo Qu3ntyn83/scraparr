@@ -192,12 +192,12 @@ def sync_sonarr():
 
 # ---------------------------------------------------------------- Fehlendes an Radarr/Sonarr übergeben
 
-def _profile(system):
-    """Qualitätsprofil: Einstellung (Name oder ID), sonst das erste."""
+def _profile(system, want=None):
+    """Qualitätsprofil: ausdrückliche Wahl, sonst Einstellung (Name oder ID), sonst das erste."""
     profiles = _get(system, "/qualityprofile")
     if not profiles:
         raise SourceError(f"{system.capitalize()}: kein Qualitätsprofil vorhanden")
-    want = (config.get(f"{system}_quality_profile") or "").strip().lower()
+    want = str(want if want not in (None, "") else config.get(f"{system}_quality_profile") or "").strip().lower()
     for p in profiles:
         if want and (str(p["id"]) == want or (p.get("name") or "").lower() == want):
             return p["id"]
@@ -214,9 +214,9 @@ def _roots(system):
     return roots
 
 
-def _root(system, roots=None):
+def _root(system, roots=None, want=None):
     roots = roots or _roots(system)
-    want = (config.get(f"{system}_root_folder") or "").strip().rstrip("/\\")
+    want = (want or config.get(f"{system}_root_folder") or "").strip().rstrip("/\\")
     if want:
         if want not in roots:
             raise SourceError(f"{system.capitalize()}: Root-Ordner „{want}“ nicht gefunden (vorhanden: {', '.join(roots)})")
@@ -225,19 +225,30 @@ def _root(system, roots=None):
 
 
 def options(system):
-    """Root-Ordner und Qualitätsprofile für die Einstellungen."""
-    return {"roots": _roots(system), "profiles": [p.get("name") for p in _get(system, "/qualityprofile")]}
+    """Root-Ordner und Qualitätsprofile samt Vorauswahl (für Einstellungen und den Übergabe-Dialog)."""
+    roots = _roots(system)
+    profiles = [{"id": p["id"], "name": p.get("name") or str(p["id"])} for p in _get(system, "/qualityprofile")]
+    try:
+        default_profile = _profile(system)
+    except SourceError:
+        default_profile = profiles[0]["id"] if profiles else None
+    try:
+        default_root = _root(system, roots)
+    except SourceError:
+        default_root = roots[0]
+    return {"roots": roots, "profiles": profiles, "default_profile": default_profile, "default_root": default_root,
+            "search": bool(config.get("arr_search_on_request"))}
 
 
-def request_movies(tmdb_ids):
+def request_movies(tmdb_ids, profile=None, root=None, search=None, apply_existing=False):
     """Fehlende Filme an Radarr übergeben: vorhandene überwachen (+ suchen), neue anlegen.
     -> {"added": [...], "searched": [...], "present": [...], "failed": [...]} (Titel)"""
     if not enabled("radarr"):
         raise SourceError("Radarr ist nicht eingerichtet (Einstellungen → Radarr & Sonarr)")
-    search = bool(config.get("arr_search_on_request"))
+    search = bool(config.get("arr_search_on_request")) if search is None else bool(search)
     known = {m.get("tmdbId"): m for m in _get("radarr", "/movie")}
+    profile_id = _profile("radarr", profile) if profile not in (None, "") else None   # früh prüfen: klare Fehlermeldung
     res = {"added": [], "searched": [], "present": [], "failed": [], "search": search}
-    profile = root = None
     search_ids = []
     for tid in dict.fromkeys(int(t) for t in tmdb_ids):
         m = known.get(tid)
@@ -247,8 +258,10 @@ def request_movies(tmdb_ids):
                 if m.get("hasFile"):
                     res["present"].append(title)
                     continue
-                if not m.get("monitored"):
-                    _send("radarr", "PUT", f"/movie/{m['id']}", {**m, "monitored": True})
+                new_profile = apply_existing and profile_id and m.get("qualityProfileId") != profile_id
+                if not m.get("monitored") or new_profile:
+                    _send("radarr", "PUT", f"/movie/{m['id']}",
+                          {**m, "monitored": True, **({"qualityProfileId": profile_id} if new_profile else {})})
                 search_ids.append(m["id"])
                 res["searched"].append(title)
                 continue
@@ -257,9 +270,9 @@ def request_movies(tmdb_ids):
             if not look or not look.get("tmdbId"):
                 res["failed"].append(f"TMDB {tid}: Radarr findet den Film nicht")
                 continue
-            profile = profile or _profile("radarr")
-            root = root or _root("radarr")
-            _send("radarr", "POST", "/movie", {**look, "qualityProfileId": profile, "rootFolderPath": root,
+            profile_id = profile_id or _profile("radarr")
+            root = _root("radarr", want=root)
+            _send("radarr", "POST", "/movie", {**look, "qualityProfileId": profile_id, "rootFolderPath": root,
                                                "monitored": True, "minimumAvailability": "released",
                                                "addOptions": {"searchForMovie": search}})
             res["added"].append(look.get("title") or str(tid))
@@ -284,7 +297,7 @@ def _find_series(show):
     return None
 
 
-def request_episodes(show_id):
+def request_episodes(show_id, profile=None, root=None, search=None, apply_existing=False):
     """Fehlende Folgen einer Serie an Sonarr übergeben. Kennt Sonarr die Serie, werden genau diese Folgen
     überwacht (+ gesucht); sonst wird die Serie mit „fehlende Folgen überwachen“ angelegt."""
     if not enabled("sonarr"):
@@ -293,7 +306,8 @@ def request_episodes(show_id):
     info = (show or {}).get("missing_eps")
     if not show or not isinstance(info, dict) or not info.get("n"):
         raise SourceError("Für diese Serie sind keine fehlenden Folgen bekannt")
-    search = bool(config.get("arr_search_on_request"))
+    search = bool(config.get("arr_search_on_request")) if search is None else bool(search)
+    profile_id = _profile("sonarr", profile) if profile not in (None, "") else None
     wanted = {(int(s), n) for s, v in info.get("seasons", {}).items() for n in v.get("missing", [])}
     series = _find_series(show)
     if not series:
@@ -303,13 +317,13 @@ def request_episodes(show_id):
             raise SourceError(f"Sonarr findet die Serie nicht ({term})")
         roots = _roots("sonarr")
         remote = (pathmap.to_remote("sonarr", show["folder"]) or "").rstrip("/\\")
-        body = {**look[0], "qualityProfileId": _profile("sonarr"), "monitored": True, "seasonFolder": True,
+        body = {**look[0], "qualityProfileId": profile_id or _profile("sonarr"), "monitored": True, "seasonFolder": True,
                 "addOptions": {"monitor": "missing", "searchForMissingEpisodes": search,
                                "searchForCutoffUnmetEpisodes": False}}
         if any(remote.startswith(r + "/") or remote.startswith(r + "\\") for r in roots):
             body["path"] = remote                      # vorhandenen Serienordner weiterverwenden
         else:
-            body["rootFolderPath"] = _root("sonarr", roots)
+            body["rootFolderPath"] = _root("sonarr", roots, want=root)
         _send("sonarr", "POST", "/series", body)
         db.log("INFO", f"Sonarr-Übergabe: „{show['title']}“ neu angelegt, {len(wanted)} fehlende Folgen überwacht")
         return {"added": True, "episodes": len(wanted), "not_found": 0, "searched": search}
@@ -322,6 +336,9 @@ def request_episodes(show_id):
                           "(andere Zählung oder Dateien dort schon vorhanden)")
     seasons = {s for s, _ in wanted}
     changed = not series.get("monitored")
+    if apply_existing and profile_id and series.get("qualityProfileId") != profile_id:
+        series["qualityProfileId"] = profile_id
+        changed = True
     for se in series.get("seasons", []):
         if se.get("seasonNumber") in seasons and not se.get("monitored"):
             se["monitored"] = True

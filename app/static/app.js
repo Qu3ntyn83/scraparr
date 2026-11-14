@@ -271,6 +271,28 @@ function renderDetail(d) {
     </div>`;
 }
 
+// Übergabe an Radarr/Sonarr: Profil, Root-Ordner und Suche vor dem Absenden wählen. -> Auswahl | null
+async function askArr(sys, what) {
+  const name = sys === "radarr" ? "Radarr" : "Sonarr";
+  let o;
+  try { o = await api("GET", `/api/arr/${sys}/options`); } catch (e) { toast(e.message, true); return null; }
+  $("#arr-title").textContent = `Übergabe an ${name}`;
+  $("#arr-sys").textContent = name;
+  $("#arr-what").textContent = what;
+  $("#arr-profile").innerHTML = o.profiles.map((p) => `<option value="${p.id}" ${p.id === o.default_profile ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+  $("#arr-root").innerHTML = o.roots.map((r) => `<option ${r === o.default_root ? "selected" : ""}>${esc(r)}</option>`).join("");
+  $("#arr-search").checked = o.search;
+  $("#arr-existing").checked = false;
+  const dlg = $("#dlg-arr");
+  return new Promise((resolve) => {
+    const done = (val) => { $("#arr-ok").onclick = $("#arr-cancel").onclick = dlg.onclose = null; if (dlg.open) dlg.close(); resolve(val); };
+    $("#arr-ok").onclick = () => done({ profile: +$("#arr-profile").value, root: $("#arr-root").value, search: $("#arr-search").checked, apply_existing: $("#arr-existing").checked });
+    $("#arr-cancel").onclick = () => done(null);
+    dlg.onclose = () => done(null);
+    dlg.showModal();
+  });
+}
+
 // Zahlenliste kompakt: [1,2,3,5] -> "E01–E03, E05"
 function epRanges(nums) {
   const p = (n) => "E" + String(n).padStart(2, "0");
@@ -300,9 +322,11 @@ $("#detail").addEventListener("click", async (e) => {
   const rq = e.target.closest("#btn-req-sonarr"), rc = e.target.closest("#btn-recheck");
   if (rc) return runJob("/api/shows/complete", { ids: [+rc.dataset.id], force: true });
   if (!rq) return;
+  const choice = await askArr("sonarr", `${S.detail?.missing_eps?.n || ""} fehlende Folgen von „${S.detail?.title || ""}“`);
+  if (!choice) return;
   rq.disabled = true; rq.textContent = "Übergebe …";
   try {
-    const r = await api("POST", `/api/shows/${rq.dataset.id}/request`);
+    const r = await api("POST", `/api/shows/${rq.dataset.id}/request`, choice);
     toast(r.added ? `Serie in Sonarr angelegt – ${r.episodes} fehlende Folgen werden überwacht${r.searched ? " und gesucht" : ""}`
       : `${r.episodes} Folgen in Sonarr überwacht${r.searched ? ", Suche gestartet" : ""}${r.not_found ? ` · ${r.not_found} kennt Sonarr nicht` : ""}`);
     rq.textContent = "An Sonarr übergeben ✓";
@@ -698,7 +722,7 @@ $("#arr-options").addEventListener("click", async () => {
   for (const sys of ["radarr", "sonarr"]) {
     try {
       const o = await api("GET", `/api/arr/${sys}/options`);
-      parts.push(`${sys === "radarr" ? "Radarr" : "Sonarr"} – Ordner: ${o.roots.join(", ") || "–"} · Profile: ${o.profiles.join(", ") || "–"}`);
+      parts.push(`${sys === "radarr" ? "Radarr" : "Sonarr"} – Ordner: ${o.roots.join(", ") || "–"} · Profile: ${o.profiles.map((p) => p.name).join(", ") || "–"}`);
     } catch (e) { parts.push(`${sys === "radarr" ? "Radarr" : "Sonarr"}: ${e.message}`); }
   }
   out.textContent = parts.join("  |  ");
@@ -860,9 +884,11 @@ $("#set-body").addEventListener("click", async (e) => {
   const rd = e.target.closest("[data-radarr]");
   if (rd) {
     const label = rd.textContent;
+    const choice = await askArr("radarr", rd.dataset.tmdb ? "1 fehlender Film dieser Reihe" : "alle fehlenden Filme dieser Reihe");
+    if (!choice) return;
     rd.disabled = true; rd.textContent = "Übergebe …";
     try {
-      const r = await api("POST", `/api/collections/${rd.dataset.radarr}/request`, { tmdb_ids: rd.dataset.tmdb ? [+rd.dataset.tmdb] : [] });
+      const r = await api("POST", `/api/collections/${rd.dataset.radarr}/request`, { ...choice, tmdb_ids: rd.dataset.tmdb ? [+rd.dataset.tmdb] : [] });
       const bits = [r.added.length ? `${r.added.length} in Radarr angelegt` : "", r.searched.length ? `${r.searched.length} ${r.search ? "zur Suche gegeben" : "überwacht"}` : "",
         r.present.length ? `${r.present.length} hat Radarr schon` : "", r.failed.length ? `${r.failed.length} fehlgeschlagen: ${r.failed[0]}` : ""].filter(Boolean);
       toast(bits.join(" · ") || "Nichts zu tun", !!r.failed.length && !r.added.length && !r.searched.length);

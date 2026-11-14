@@ -193,7 +193,14 @@ def collections_action(action: str, body: CollAction):
     return _start(name, jobs.job_collections, action, body.ids or None)
 
 
-class TmdbIds(BaseModel):
+class ArrChoice(BaseModel):
+    profile: int | None = None          # Qualitätsprofil-ID; leer = Vorgabe aus den Einstellungen
+    root: str | None = None             # Root-Ordner für neu angelegte Titel
+    search: bool | None = None          # Suche sofort starten
+    apply_existing: bool = False        # Profil auch bei Titeln setzen, die Radarr/Sonarr schon kennt
+
+
+class TmdbIds(ArrChoice):
     tmdb_ids: list[int] = []
 
 
@@ -206,7 +213,7 @@ def collection_request(cid: int, body: TmdbIds):
     if not ids:
         raise HTTPException(400, "In dieser Reihe fehlt kein Film")
     try:
-        return arr.request_movies(ids)
+        return arr.request_movies(ids, body.profile, body.root, body.search, body.apply_existing)
     except SourceError as e:
         raise HTTPException(502, str(e))
 
@@ -411,10 +418,10 @@ def shows_complete(body: Ids):
 
 
 @app.post("/api/shows/{sid}/request")
-def show_request(sid: int):
+def show_request(sid: int, body: ArrChoice = ArrChoice()):
     """Fehlende Folgen an Sonarr übergeben."""
     try:
-        return arr.request_episodes(sid)
+        return arr.request_episodes(sid, body.profile, body.root, body.search, body.apply_existing)
     except SourceError as e:
         raise HTTPException(502, str(e))
 

@@ -468,3 +468,5 @@ fieldset, .src, .src-grid > * { min-width: 0; }
 .inc-act { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .set-part .btn.small { padding: 2px 8px; font-size: 11px; }
 .set-hero .incomplete { margin: 14px 0 0; }
+.arr-form { display: grid; gap: 12px; }
+.arr-form label:not(.chk) { display: grid; gap: 4px; font-size: 13px; }
