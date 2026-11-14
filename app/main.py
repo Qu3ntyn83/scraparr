@@ -343,7 +343,8 @@ def shows():
     return db.query(
         "SELECT s.id, s.folder, s.guess_title, s.guess_year, s.tmdb_id, s.title, s.original_title, s.year, "
         "s.fsk, s.status, s.message, s.has_nfo, s.has_poster, s.has_fanart, s.has_trailer, s.has_theme, s.added, "
-        "COUNT(e.id) AS ep_total, SUM(e.status='gescrapt') AS ep_ok, SUM(e.status='fehler') AS ep_err "
+        "COUNT(e.id) AS ep_total, SUM(e.status='gescrapt') AS ep_ok, SUM(e.status='fehler') AS ep_err, "
+        "SUM(e.status='fehler' AND e.season IS NULL) AS ep_unrec "
         "FROM shows s LEFT JOIN episodes e ON e.show_id=s.id GROUP BY s.id "
         "ORDER BY COALESCE(s.title, s.guess_title) COLLATE NOCASE")
 

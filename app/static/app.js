@@ -63,6 +63,8 @@ function show(view) {
     $(".c-ep").classList.toggle("hidden", view !== "shows");
     $(".c-theme").classList.toggle("hidden", view !== "shows");
     $("#btn-themes").classList.toggle("hidden", view !== "shows");
+    $$("#filter-status .only-shows").forEach((o) => { o.hidden = o.disabled = view !== "shows"; });
+    if (view !== "shows" && $("#filter-status").value.startsWith("ep_")) $("#filter-status").value = "";
     $("#btn-rescrape").title = view === "shows" ? "Serie inkl. aller Episoden neu scrapen" : "Ausgewählte komplett neu scrapen, Artwork überschreiben";
     $("#detail").innerHTML = `<div class="placeholder">${view === "movies" ? "Film" : "Serie"} links auswählen</div>`;
     loadList();
@@ -95,6 +97,9 @@ function filtered() {
   let list = S.items.filter((i) => {
     if (q && !`${i.title} ${i.guess_title} ${i.original_title} ${i.path || i.folder}`.toLowerCase().includes(q)) return false;
     if (st === "incomplete") return !(i.has_nfo && i.has_poster && i.has_fanart);
+    if (st === "ep_err") return i.ep_err > 0;
+    if (st === "ep_unrec") return i.ep_unrec > 0;
+    if (st === "ep_notfound") return (i.ep_err || 0) - (i.ep_unrec || 0) > 0;
     if (st && i.status !== st) return false;
     return true;
   });
